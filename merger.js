@@ -1,131 +1,106 @@
-const fs = require("fs");
-const path = require("path");
+#!/usr/bin/env node
+
+const fs = require('fs');
+const path = require('path');
 const convert = require('xml-js');
-const xml = require('xml');
+const { Command } = require('commander');
 
-module.exports = Merge;
+function getProgram() {
+    const program = new Command();
 
-function getOptions()
-{
-    const options = {};
-    const args = process.argv.slice(2);
-    const file = args[0];
-    const typeOfFile = file.split(".").at(-1);
-    if (!["json", "js"].includes(typeOfFile))
-    {
-        process.stderr.write("Invalid config file.\n");
-        return null;
-    }
+    program
+        .name('merge-results')
+        .description('Merges results of Cypress tests into one file, which can be uploaded to Ibutsu')
+        .requiredOption('-p, --project <string>', 'Name of the project')
+        .requiredOption('-c, --component <string>', 'Component being tested')
+        .requiredOption('-d, --directory <path>', 'Path to the directory with results')
+        .option('-s, --source', 'Source from which test is run')
+        .option('-e, --environment', 'Environment the test is run in')
+        .option('-v, --verbose', 'Output the merged results to console');
 
-    if (typeOfFile == "json")
-    {
-        let data = fs.readFileSync(file, "utf8", (err, data) => {
-            if (err)
-            {
-                process.stderr.write("Error occurred when trying to read file contents.\n");
-                return null;
-            }
-
-            return data;
-        })
-
-        data = JSON.parse(data);
-
-        const reporterOptions = data?.reporterOptions;
-
-        options.project = reporterOptions?.testsuitesTitle;
-        const fileDir = path.dirname(reporterOptions.outputFile);
-        const rootDir = path.dirname(file);
-        options.path = path.join(rootDir, fileDir);
-    }
-    else
-    {
-        //
-    }
-
-    return options;
+    return program;
 }
 
-function Merge()
-{
-    this._options = getOptions();
-    if (this._options == null)
-        return;
-    
-    if (!this.generateReportFile())
-        return;
+const program = getProgram();
 
-    this.bundle();
-}
+program.action((options) => {
+    const dirPath = options.directory; // TODO: handle relative paths
 
-Merge.prototype.bundle = function () {
-    const stats = {tests: 0, failures: 0};
+    try {
+        fs.accessSync(dirPath, fs.constants.R_OK);
+    } catch (err) {
+        process.stderr.write(
+            `ERR: The directory '${options.directory}' doesn't exist or permissions aren't set correctly.\n`
+        );
+        process.exit(1);
+    }
+
+    const stats = { tests: 0, failures: 0 };
     const suites = [];
-    const files = fs.readdirSync(this._options.path).filter((file) => {
-        return file.includes("tmp")
+    const resultFiles = fs.readdirSync(dirPath).filter((file) => {
+        return file.includes('tmp');
     });
 
-    for (const file of files) {
-        const data = fs.readFileSync(`${this._options.path}/${file}`, "utf8", (err, data) => {
-            if (err)
-            {
-                process.stderr.write("Error occurred when trying to read file contents.\n");
-                return null;
+    for (const file of resultFiles) {
+        const data = fs.readFileSync(`${dirPath}/${file}`, 'utf8', (err, data) => {
+            if (err) {
+                process.stderr.write(`ERR: Cannot read contents of ${file}.\n`);
+                process.exit(1);
             }
-            
+
             return data;
         });
 
-        const xmlDoc = convert.xml2json(data, {compact: true, spaces: 4});
+        const xmlDoc = convert.xml2json(data, { compact: true, spaces: 2 });
         let suite = JSON.parse(xmlDoc);
 
         for (const [key, value] of Object.entries(suite.testsuites)) {
             let file;
-            if (key === "_attributes")
-            {
-                stats.tests += parseInt(value["tests"]);
-                stats.failures += parseInt(value["failures"]);
+            if (key === '_attributes') {
+                stats.tests += parseInt(value['tests']);
+                stats.failures += parseInt(value['failures']);
                 continue;
             }
             for (const [k, v] of Object.entries(value)) {
-                if (v["_attributes"]["file"] != "null")
-                    file = v["_attributes"]["file"]
-                else
-                    v["_attributes"].file = file;
+                if (v['_attributes']['file'] != 'null') 
+                    file = v['_attributes']['file'];
+                else 
+                    v['_attributes'].file = file;
 
-                if (v["testcase"])
-                    suites.push({testsuite: {...v}});
+                if (v['testcase']) 
+                    suites.push({ ...v });
             }
         }
     }
 
-    const rootSuite = {_attributes: {tests: stats.tests, failures: stats.failures, errors: 0, skipped: 0}, ...suites};
-    const out = {testsuites: [rootSuite]};
+    const source = options.source ?? process.env.BUILD_TAG ?? process.env.RUNNER_TRACKING_ID ?? 'local';
 
-    console.log(out);
+    const propList = [
+        { _attributes: { key: 'project', value: options.project } },
+        { _attributes: { key: 'component', value: options.component } },
+        { _attributes: { key: 'source', value: source } },
+        { _attributes: { key: 'env', value: options.env ?? '' } },
+    ];
 
-    const data = convert.json2xml(JSON.stringify(out), {compact: true, ignoreComment: true, spaces: 4}, ...suites)
+    const propObj = {property: [...propList]}
 
+    const rootSuite = {
+        _attributes: { tests: stats.tests, failures: stats.failures, errors: 0, skipped: 0 },
+        properties: [propObj],
+        testsuite: suites,
+    };
+    const out = { testsuites: [rootSuite] };
+
+    const data = convert.json2xml(JSON.stringify(out), { compact: true, ignoreComment: true, spaces: 4 });
+    
+    if (options.verbose) 
+        console.log(data);
+    
     try {
-    fs.writeFileSync(`${this._options.path}/merged.xml`, data, "utf-8");
+        fs.writeFileSync(`${dirPath}/merged.xml`, data, 'utf-8');
     } catch (exc) {
-    process.stderr.write("Error occurred when trying to export results.\n");
+        process.stderr.write('ERR: Cannot write results file.\n');
     }
+});
 
-};
-
-Merge.prototype.generateReportFile = function () {
-    const report = {"metadata": {"project": this._options.project}};
-    const data = JSON.stringify(report);
-    const filename = this._options.path + "/run.json";
-    try {
-        fs.writeFileSync(filename, data);
-        return true;
-    } catch (exc) {
-        process.stderr.write("Error occurred when trying to export report file.\n");
-        process.stderr.write(exc);
-        return false;
-    }
-};
-
-new Merge();
+program.parse(process.argv);
