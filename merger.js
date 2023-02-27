@@ -146,13 +146,13 @@ program.action((options) => {
     };
     const out = { testsuites: [rootSuite] };
 
-    const data = convert.json2xml(JSON.stringify(out), { compact: true, ignoreComment: true, spaces: 4 });
+    const data = convert.json2xml(JSON.stringify(out), { compact: true, ignoreComment: true, spaces: 2 });
     
     if (opts.verbose) 
         console.log(data);
     
     try {
-        fs.writeFileSync(`${dirPath}/${opts?.output ?? 'merged'}.xml`, data, 'utf-8');
+        fs.writeFileSync(`${dirPath}/${opts?.output ?? 'merged'}.ibutsu.xml`, data, 'utf-8');
     } catch (exc) {
         process.stderr.write('ERR: Cannot write results file.\n');
     }
