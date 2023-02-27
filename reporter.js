@@ -14,7 +14,7 @@ function removeANSI(text) {
 function setOptions(opts) {
   let options = opts ?? {};
   options = options?.reporterOptions ?? {};
-  options.outputFile = "cypress/results/tmp-#.xml";
+  options.outputFile = `${options?.outputDir ?? 'cypress/results'}/tmp-#.xml`;
   return options;
 }
 
@@ -128,17 +128,15 @@ function MochaIbutsuReporter(runner, options) {
     }.bind(this)
   );
 
-  if (this._options.includePending) {
-    this._runner.on(
-      "pending",
-      function (test) {
-        var testcase = this.getTestcaseData(test);
+  this._runner.on(
+    "pending",
+    function (test) {
+      var testcase = this.getTestcaseData(test);
 
-        testcase.testcase.push({ skipped: null });
-        lastSuite().push(testcase);
-      }.bind(this)
-    );
-  }
+      testcase.testcase.push({ skipped: null });
+      lastSuite().push(testcase);
+    }.bind(this)
+  );
 
   this._runner.on(
     "end",
