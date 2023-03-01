@@ -25,7 +25,9 @@ npm install mocha-ibutsu-reporter
 
 ## Generating test results
 
-In your Cypress config file, set the `reporter` option to `mocha-ibutsu-reporter`. Files are by default exported to `cypress/results/` directory and can be set by user using the `outputDir` option, the path is **relative to the cypress config file**.
+In your Cypress config file, set the `reporter` option to `mocha-ibutsu-reporter`. Files are by default
+exported to `cypress/results/` directory and can be set by user using the `outputDir` option, the path
+is **relative to the cypress config file**.
 
 ### JS configuration
 
@@ -72,7 +74,10 @@ export default defineConfig({
 
 ## Merging files
 
-Results are merged using the `merge-results` command. Results are by default exported to `merged.xml`. Any options set in the cypress config file can be overriden by passing options to the cli program.
+Results are merged using the `merge-results` command. If no output file is set, results are by default
+exported to `.ibutsu.xml` file with UUIDv4 set as it's name, and can be found in the directory with
+individual result files. Any options set in the cypress config file can be overriden by passing
+options to the cli program.
 
 ### Options
 
@@ -91,5 +96,5 @@ Results are merged using the `merge-results` command. Results are by default exp
 ### Example
 
 ```shell script
-merge-results -c cypress.json -e local -o exported_results
+merge-results -c cypress.json -e local -o ~/results/exported_results.xml
 ```

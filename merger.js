@@ -4,6 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const convert = require('xml-js');
 const { Command } = require('commander');
+const { v4: uuidv4 } = require('uuid');
+const mkdirp = require('mkdirp');
 
 function getProgram() {
     const program = new Command();
@@ -28,6 +30,7 @@ const program = getProgram();
 function validateOptions(options) {
     const opts = {};
 
+    // If config file was provided, check if it exists, and read options from there
     if (options.config) {
         const confPath = path.resolve(options.config);
         try {
@@ -44,7 +47,7 @@ function validateOptions(options) {
             const reporterOptions = configModule.reporterOptions;
             Object.assign(opts, reporterOptions);
         }
-    
+
         if (confPath.endsWith('.json')) {
             const configJSON = fs.readFileSync(confPath);
             const parsed = JSON.parse(configJSON);
@@ -60,13 +63,26 @@ function validateOptions(options) {
     if (options.source) opts.source = options.source;
     if (options.environment) opts.environment = options.environment;
 
-    if (options.verbose)
-        opts.verbose = true;
-
-    opts.exportFile = options?.output ?? 'merged';
+    if (options.verbose) opts.verbose = true;
 
     if (!opts.outputDir) {
-        process.stderr.write('ERR: Directory with test results wasn\'t set.\n');
+        console.error('ERR: Directory with test results wasn\'t set.');
+        return null;
+    }
+
+    // If a path is provided with the output, overwrite the default output directory
+    if (options.output)
+        opts.output = path.resolve(opts.outputDir, options.output)
+    else
+        opts.output = path.resolve(opts.outputDir, `${uuidv4()}.ibutsu.xml`);
+
+    // Check if provided path exist
+    try {
+        fs.accessSync(opts.outputDir, fs.constants.R_OK);
+    } catch (err) {
+        console.error(
+            `ERR: The directory with results doesn't exist or permissions aren't set correctly:\n${opts.outputDir}`
+        );
         return null;
     }
 
@@ -76,29 +92,20 @@ function validateOptions(options) {
 program.action((options) => {
     const opts = validateOptions(options);
     if (opts === null)
-        process.exit(1);               
-
-    const dirPath = opts.outputDir;
-
-    try {
-        fs.accessSync(dirPath, fs.constants.R_OK);
-    } catch (err) {
-        process.stderr.write(
-            `ERR: The directory '${opts.outputDir}' doesn't exist or permissions aren't set correctly.\n`
-        );
         process.exit(1);
-    }
 
     const stats = { tests: 0, failures: 0, skipped: 0 };
     const suites = [];
-    const resultFiles = fs.readdirSync(dirPath).filter((file) => {
+
+    // Fetch files with results
+    const resultFiles = fs.readdirSync(opts.outputDir).filter((file) => {
         return file.includes('tmp');
     });
 
     for (const file of resultFiles) {
-        const data = fs.readFileSync(`${dirPath}/${file}`, 'utf8', (err, data) => {
+        const data = fs.readFileSync(`${opts.outputDir}/${file}`, 'utf8', (err, data) => {
             if (err) {
-                process.stderr.write(`ERR: Cannot read contents of ${file}.\n`);
+                console.error(`ERR: Cannot read contents of ${file}.`);
                 process.exit(1);
             }
 
@@ -108,6 +115,7 @@ program.action((options) => {
         const xmlDoc = convert.xml2json(data, { compact: true, spaces: 2 });
         let suite = JSON.parse(xmlDoc);
 
+        // Update global stats and propagate attributes between tests
         for (const [key, value] of Object.entries(suite.testsuites)) {
             let file;
             if (key === '_attributes') {
@@ -117,12 +125,12 @@ program.action((options) => {
                 continue;
             }
             for (const [k, v] of Object.entries(value)) {
-                if (v['_attributes']['file'] != 'null') 
+                if (v['_attributes']['file'] != 'null')
                     file = v['_attributes']['file'];
-                else 
+                else
                     v['_attributes'].file = file;
 
-                if (v['testcase']) 
+                if (v['testcase'])
                     suites.push({ ...v });
             }
         }
@@ -147,14 +155,16 @@ program.action((options) => {
     const out = { testsuites: [rootSuite] };
 
     const data = convert.json2xml(JSON.stringify(out), { compact: true, ignoreComment: true, spaces: 2 });
-    
-    if (opts.verbose) 
-        console.log(data);
-    
+
+    if (opts.verbose) console.log(data);
+
+    // Make sure directory for the output file exists
+    mkdirp.sync(path.dirname(opts.output));
+
     try {
-        fs.writeFileSync(`${dirPath}/${opts?.output ?? 'merged'}.ibutsu.xml`, data, 'utf-8');
+        fs.writeFileSync(opts.output, data, 'utf-8');
     } catch (exc) {
-        process.stderr.write('ERR: Cannot write results file.\n');
+        console.error(`ERR: Cannot write results file.\n${exc}`);
     }
 });
 
