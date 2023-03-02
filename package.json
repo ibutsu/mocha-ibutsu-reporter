@@ -1,0 +1,25 @@
+{
+  "name": "mocha-ibutsu-reporter",
+  "version": "0.0.1",
+  "description": "Exports results from Cypress for Ibutsu",
+  "main": "reporter.js",
+  "bin": {
+    "merge-results": "./merger.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ibutsu/mocha-ibutsu-reporter"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^10.0.0",
+    "md5": "^2.3.0",
+    "mkdirp": "^2.1.3",
+    "uuid": "^9.0.0",
+    "xml": "^1.0.0",
+    "xml-js": "^1.6.11"
+  },
+  "peerDependencies": {
+    "mocha": ">=2.2.5"
+  }
+}
