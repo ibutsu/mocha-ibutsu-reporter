@@ -1,7 +1,7 @@
 <!-- omit in toc -->
 # Mocha Ibutsu reporter
 
-Exports results from Cypress test run and merges them into a XML file, which can be uploaded to Ibutsu.
+Exports results from Cypress test run and merges them into an XML file, which can be uploaded to Ibutsu.
 
 <!-- omit in toc -->
 # Table of contents
@@ -75,9 +75,9 @@ export default defineConfig({
 ## Merging files
 
 Results are merged using the `merge-results` command. If no output file is set, results are by default
-exported to `.ibutsu.xml` file with UUIDv4 set as it's name, and can be found in the directory with
+exported to `.ibutsu.xml` file with UUIDv4 set as its name, and can be found in the directory with
 individual result files. Any options set in the cypress config file can be overriden by passing
-options to the cli program.
+options to the CLI program.
 
 ### Options
 
@@ -92,6 +92,9 @@ options to the cli program.
 | output      | o         | Name of the merged file         |
 | verbose     | v         | Print merged results to console |
 | help        | h         | Prints usage of the command     |
+
+NOTE: For more information about the purpose of each field, see
+[Ibutsu’s documentation](https://docs.ibutsu-project.org/)
 
 ### Example
 
